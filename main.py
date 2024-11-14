@@ -2,11 +2,18 @@ import os
 import json
 import requests 
 import webbrowser
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 def load_visited_stories():
     if os.path.exists('visited_stories.json'):
         with open('visited_stories.json', 'r') as f:
-            return set(json.load(f))
+            content = f.read()
+
+            if content:
+                return set(json.loads(content))
+            else:
+                return set()
     else:
         return set()
 
@@ -14,6 +21,14 @@ def load_visited_stories():
 def save_visited_stories(stories):
     with open('visited_stories.json', 'w') as f:
         json.dump(list(stories), f)
+
+
+def compute_topic_similarity(text, favorite_topics):
+    corpus = [text] + favorite_topics
+    vectorizer = TfidfVectorizer().fit_transform(corpus)
+    vectors = vectorizer.toarray()
+    similarity = cosine_similarity([vectors[0]], vectors[1:]).flatten()
+    return similarity.mean() 
 
 
 def get_best_stories():
@@ -30,11 +45,18 @@ def get_best_stories():
 
             story_data = get_story_details(story)
 
-            if story_data:
-                story_urls.append(story_data['url'])
-                
-                if len(story_urls) == 10:
-                    break
+            with open('interests.json', 'r') as f:
+                favorite_topics = json.load(f)
+
+                title = story_data.get('title', '')
+                text = story_data.get('text', '')
+                topic_similarity_score = compute_topic_similarity(title + " " + text, favorite_topics)
+
+                if story_data:
+                    story_urls.append(story_data['url'])
+                    
+                    if len(story_urls) == 10:
+                        break
 
     if len(story_urls) < 10:
         return story_urls
